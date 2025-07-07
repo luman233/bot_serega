@@ -8,31 +8,16 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run bot
-        run: python bot/main.py
+      - run: pip install pyrogram tgcrypto
+      - run: python bot/main.py
         env:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
           TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
           TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
           SOURCE_GROUP_IDS: ${{ secrets.SOURCE_GROUP_IDS }}
-
-      - name: Upload state files
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: state-files
-          path: bot/state/
