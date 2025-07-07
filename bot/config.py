@@ -7,28 +7,21 @@ SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
 
 def parse_chat_id(x):
     x = x.strip()
-    # Если ссылка вида https://t.me/username
-    match = re.match(r"https?://t\.me/([A-Za-z0-9_]+)", x)
-    if match:
-        return match.group(1)
-    # Если username с @
+    if re.match(r"https?://t\.me/([A-Za-z0-9_]+)", x):
+        return re.findall(r"https?://t\.me/([A-Za-z0-9_]+)", x)[0]
     if x.startswith("@"):
         return x[1:]
-    # Если числовой id
     if x.lstrip("-").isdigit():
         return int(x)
-    # Просто username без @
     return x
 
-# Источник можно указать через запятую как id, так и username групп-источников, напр. testgroup1,-1001234567890
 SOURCE_GROUP_IDS = [
     parse_chat_id(g)
     for g in os.getenv("SOURCE_GROUP_IDS", "").split(",")
     if g.strip()
 ]
 
-# Жёстко прописанный username или id целевой группы
-TARGET_GROUP_ID = "yvjyfvkkinvf"  # или "-1002854897694" если нужен id
+TARGET_GROUP_ID = os.getenv("TARGET_GROUP_ID", "your_target_group")
 
 TRIGGER_WORDS = [
     "спам",
