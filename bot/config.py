@@ -20,15 +20,13 @@ def parse_chat_id(x):
     # Просто username без @
     return x
 
-# Источник можно указать через запятую как id, так и username групп-источников, напр. testgroup1,-1001234567890
 SOURCE_GROUP_IDS = [
     parse_chat_id(g)
     for g in os.getenv("SOURCE_GROUP_IDS", "").split(",")
     if g.strip()
 ]
 
-# Жёстко прописанный username или id целевой группы
-TARGET_GROUP_ID = "yvjyfvkkinvf"  # или "-1002854897694" если нужен id
+TARGET_GROUP_ID = os.getenv("TARGET_GROUP_ID", "yvjyfvkkinvf")  # или id, передаваемый через env
 
 TRIGGER_WORDS = [
     "спам",
