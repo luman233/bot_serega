@@ -1,20 +1,27 @@
 import asyncio
 import hashlib
-from pyrogram import Client
-from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
-from datetime import datetime, timedelta, timezone
-import os
 import json
+import os
+from datetime import datetime, timedelta, timezone
+from pyrogram import Client
 from pyrogram.types import Message
+from config import (
+    API_ID,
+    API_HASH,
+    SESSION_STRING,
+    SOURCE_GROUP_IDS,
+    TARGET_GROUP_ID,
+    TRIGGER_WORDS,
+)
 
 PERIOD_MINUTES = 10
-STATE_DIR = "state"
+STATE_DIR = "bot/state"
 
 app = Client(
     "userbot",
     api_id=API_ID,
     api_hash=API_HASH,
-    session_string=SESSION_STRING
+    session_string=SESSION_STRING,
 )
 
 def is_trigger(text):
@@ -31,23 +38,30 @@ def load_group_state(group_id):
     ensure_state_dir()
     fname = get_state_file(group_id)
     if os.path.exists(fname):
-        with open(fname, "r") as f:
-            try:
+        try:
+            with open(fname, "r") as f:
                 return json.load(f)
-            except:
-                return {"last_id": 0, "hashes": []}
+        except Exception as e:
+            print(f"⚠️ Ошибка чтения state-файла: {e}")
     return {"last_id": 0, "hashes": []}
 
 def save_group_state(group_id, state):
+    ensure_state_dir()
     fname = get_state_file(group_id)
-    with open(fname, "w") as f:
-        json.dump(state, f)
+    try:
+        with open(fname, "w") as f:
+            json.dump(state, f)
+    except Exception as e:
+        print(f"⚠️ Ошибка записи state-файла: {e}")
 
 def hash_text(text):
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-def format_forwarded_message(msg):
-    text = msg.text or ""
+def get_text_from_message(msg: Message):
+    return msg.text or msg.caption or ""
+
+def format_forwarded_message(msg: Message):
+    text = get_text_from_message(msg)
     text += "\n\n"
     if msg.chat.username:
         chat_link = f"https://t.me/{msg.chat.username}"
@@ -70,6 +84,7 @@ async def process_group(client, group_id, after_ts):
     last_id = state.get("last_id", 0)
     recent_hashes = state.get("hashes", [])
     max_id = last_id
+
     print(f"\n🔍 Обработка группы: {group_id}, last_message_id: {last_id}")
 
     async for msg in client.get_chat_history(group_id, limit=100):
@@ -79,28 +94,30 @@ async def process_group(client, group_id, after_ts):
             continue
         if msg.id <= last_id:
             break
-        if not msg.text:
-            continue
         if msg.from_user and msg.from_user.is_self:
             continue
 
-        if is_trigger(msg.text):
+        text = get_text_from_message(msg)
+        if not text:
+            continue
+
+        if is_trigger(text):
             forwarded_text = format_forwarded_message(msg)
             msg_hash = hash_text(forwarded_text)
 
             if msg_hash in recent_hashes:
-                print(f"🔁 Повтор текста, msg.id {msg.id}, не отправляем снова")
+                print(f"🔁 Дубликат, msg.id {msg.id}")
                 continue
 
             try:
                 await client.send_message(TARGET_GROUP_ID, forwarded_text)
-                print(f"📤 Переслано: {msg.text[:40]}...")
+                print(f"📤 Переслано: {text[:40]}...")
                 recent_hashes.append(msg_hash)
-                recent_hashes = recent_hashes[-50:]  # храним последние 50 хешей
+                recent_hashes = recent_hashes[-50:]  # храним только последние 50
             except Exception as e:
                 print(f"❌ Ошибка при пересылке: {e}")
         else:
-            print(f"🚫 msg.id {msg.id}: не подходит под триггер")
+            print(f"🚫 msg.id {msg.id}: не по триггеру")
 
         if msg.id > max_id:
             max_id = msg.id
@@ -108,8 +125,8 @@ async def process_group(client, group_id, after_ts):
     if max_id > last_id:
         state["last_id"] = max_id
         state["hashes"] = recent_hashes
+        print(f"💾 Сохраняем state: {state}")
         save_group_state(group_id, state)
-        print(f"💾 Сохранили состояние: max_id {max_id}, hash count: {len(recent_hashes)}")
 
 async def main():
     now = datetime.now(timezone.utc)
@@ -121,7 +138,7 @@ async def main():
     async with app:
         try:
             chat = await app.get_chat(TARGET_GROUP_ID)
-            print("ℹ️ Информация о целевой группе:", chat)
+            print("ℹ️ Целевая группа:", chat.title or chat.id)
         except Exception as e:
             print(f"❌ Не удалось получить целевую группу: {e}")
 
