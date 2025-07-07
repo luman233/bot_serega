@@ -1,31 +1,23 @@
-name: Telegram UserBot
+name: Run Spam Forwarder
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: "*/10 * * * *"  # каждые 10 минут
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run bot
+          python-version: '3.11'
+      - run: pip install pyrogram tgcrypto
+      - run: python bot/main.py
         env:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
           TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
           TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
-        run: |
-          python bot/main.py
+          SOURCE_GROUP_IDS: ${{ secrets.SOURCE_GROUP_IDS }}
