@@ -25,6 +25,7 @@ async def process_group(client, group_id, after_ts):
             continue
         if is_trigger(msg.text):
             try:
+                print(f"Попытка отправить в TARGET_GROUP_ID = {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
                 await client.send_message(
                     TARGET_GROUP_ID,
                     f"[{msg.chat.title or msg.chat.id}] {msg.text}"
@@ -38,11 +39,17 @@ async def main():
     after = now - timedelta(minutes=PERIOD_MINUTES)
     print(f"Период: {after} ... {now}")
     print("SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
-    print("TARGET_GROUP_ID:", TARGET_GROUP_ID)
+    print(f"TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
     async with app:
+        # Для отладки: убедимся, что бот видит целевую группу
+        try:
+            chat = await app.get_chat(TARGET_GROUP_ID)
+            print("Информация о целевой группе:", chat)
+        except Exception as e:
+            print(f"Не удалось получить целевую группу: {e}")
         for group in SOURCE_GROUP_IDS:
             print(f"Обработка группы: {group}")
             await process_group(app, group, after)
 
 if __name__ == "__main__":
-    app.run(main())  # <= вот здесь!
+    app.run(main())
