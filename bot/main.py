@@ -2,10 +2,12 @@ import asyncio
 from pyrogram import Client
 from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
 from datetime import datetime, timedelta, timezone
-import os
 from pyrogram.types import Message
+import os
+import hashlib
 
 PERIOD_MINUTES = 10
+MAX_HASHES_PER_GROUP = 300  # Максимум хешей на источник
 
 app = Client(
     "userbot",
@@ -55,9 +57,34 @@ def format_forwarded_message(msg):
         text += "Без имени"
     return text
 
+def get_hash(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+def get_hash_file(group_id):
+    safe_id = str(group_id).replace("@", "").replace("-", "m")
+    return f"forwarded_hashes_{safe_id}.txt"
+
+def load_forwarded_hashes(group_id):
+    fname = get_hash_file(group_id)
+    if not os.path.exists(fname):
+        return []
+    with open(fname, "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+def save_forwarded_hash(group_id, msg_hash):
+    hashes = load_forwarded_hashes(group_id)
+    hashes.append(msg_hash)
+    hashes = hashes[-MAX_HASHES_PER_GROUP:]  # только последние N
+    fname = get_hash_file(group_id)
+    with open(fname, "w") as f:
+        for h in hashes:
+            f.write(h + "\n")
+
 async def process_group(client, group_id, after_ts):
     last_id = load_last_id(group_id)
     max_id = last_id
+    known_hashes = load_forwarded_hashes(group_id)
+
     print(f"\n🔍 Обработка группы: {group_id}, last_message_id: {last_id}")
 
     async for msg in client.get_chat_history(group_id, limit=100):
@@ -84,10 +111,16 @@ async def process_group(client, group_id, after_ts):
             continue
 
         if is_trigger(msg.text):
-            print(f"✅ msg.id {msg.id}: подходит под триггер")
+            forwarded_text = format_forwarded_message(msg)
+            msg_hash = get_hash(forwarded_text)
+
+            if msg_hash in set(known_hashes):
+                print(f"🛑 msg.id {msg.id}: дубликат (по хешу)")
+                continue
+
             try:
-                forwarded_text = format_forwarded_message(msg)
                 await client.send_message(TARGET_GROUP_ID, forwarded_text)
+                save_forwarded_hash(group_id, msg_hash)
                 print(f"📤 Переслано: {msg.text[:40]}...")
             except Exception as e:
                 print(f"❌ Ошибка при пересылке: {e}")
