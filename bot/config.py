@@ -26,12 +26,8 @@ SOURCE_GROUP_IDS = [
     if g.strip()
 ]
 
-raw_target = os.getenv("TARGET_GROUP_ID", "").strip()
-# Для chat id преобразуем к int, для username оставляем строкой
-if raw_target.lstrip("-").isdigit():
-    TARGET_GROUP_ID = int(raw_target)
-else:
-    TARGET_GROUP_ID = parse_chat_id(raw_target)
+# Жёстко прописанный ID целевой группы:
+TARGET_GROUP_ID = -1002854897694
 
 TRIGGER_WORDS = [
     "спам",
