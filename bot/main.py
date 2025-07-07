@@ -1,13 +1,14 @@
 import asyncio
+import hashlib
 from pyrogram import Client
 from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
 from datetime import datetime, timedelta, timezone
-from pyrogram.types import Message
 import os
-import hashlib
+from pyrogram.types import Message
 
 PERIOD_MINUTES = 10
-MAX_HASHES_PER_GROUP = 300  # Максимум хешей на источник
+HASH_DIR = "hashes"
+HASH_TTL_DAYS = 7  # Хеши старше этого срока удаляются
 
 app = Client(
     "userbot",
@@ -19,24 +20,38 @@ app = Client(
 def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
-def get_last_id_file(group_id):
-    safe_id = str(group_id).replace("@", "").replace("-", "m")
-    return f"last_message_id_{safe_id}.txt"
+def ensure_hash_dir(group_id):
+    path = os.path.join(HASH_DIR, str(group_id).replace("@", "").replace("-", "m"))
+    os.makedirs(path, exist_ok=True)
+    return path
 
-def load_last_id(group_id):
-    fname = get_last_id_file(group_id)
-    if os.path.exists(fname):
-        with open(fname, "r") as f:
-            try:
-                return int(f.read().strip())
-            except:
-                return 0
-    return 0
+def hash_message(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-def save_last_id(group_id, msg_id):
-    fname = get_last_id_file(group_id)
-    with open(fname, "w") as f:
-        f.write(str(msg_id))
+def hash_file_path(group_id, hash_str):
+    group_dir = ensure_hash_dir(group_id)
+    return os.path.join(group_dir, f"{hash_str}.txt")
+
+def is_hash_known(group_id, hash_str):
+    return os.path.exists(hash_file_path(group_id, hash_str))
+
+def save_hash(group_id, hash_str):
+    path = hash_file_path(group_id, hash_str)
+    with open(path, "w") as f:
+        f.write(datetime.now(timezone.utc).isoformat())
+
+def clean_old_hashes(group_id):
+    group_dir = ensure_hash_dir(group_id)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=HASH_TTL_DAYS)
+    for fname in os.listdir(group_dir):
+        fpath = os.path.join(group_dir, fname)
+        try:
+            with open(fpath, "r") as f:
+                ts = datetime.fromisoformat(f.read().strip())
+            if ts < cutoff:
+                os.remove(fpath)
+        except Exception:
+            os.remove(fpath)
 
 def format_forwarded_message(msg):
     text = msg.text or ""
@@ -57,96 +72,47 @@ def format_forwarded_message(msg):
         text += "Без имени"
     return text
 
-def get_hash(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-def get_hash_file(group_id):
-    safe_id = str(group_id).replace("@", "").replace("-", "m")
-    return f"forwarded_hashes_{safe_id}.txt"
-
-def load_forwarded_hashes(group_id):
-    fname = get_hash_file(group_id)
-    if not os.path.exists(fname):
-        return []
-    with open(fname, "r") as f:
-        return [line.strip() for line in f if line.strip()]
-
-def save_forwarded_hash(group_id, msg_hash):
-    hashes = load_forwarded_hashes(group_id)
-    hashes.append(msg_hash)
-    hashes = hashes[-MAX_HASHES_PER_GROUP:]  # только последние N
-    fname = get_hash_file(group_id)
-    with open(fname, "w") as f:
-        for h in hashes:
-            f.write(h + "\n")
-
 async def process_group(client, group_id, after_ts):
-    last_id = load_last_id(group_id)
-    max_id = last_id
-    known_hashes = load_forwarded_hashes(group_id)
-
-    print(f"\n🔍 Обработка группы: {group_id}, last_message_id: {last_id}")
+    print(f"\n🔍 Обработка группы: {group_id}")
+    clean_old_hashes(group_id)
 
     async for msg in client.get_chat_history(group_id, limit=100):
-        print(f"▶️ Получено сообщение: {msg}")
-
-        if not isinstance(msg, Message):
-            print(f"⛔ Пропущено: не объект Message: {type(msg)}")
+        if not isinstance(msg, Message) or not msg.text or not isinstance(msg.id, int):
             continue
-
-        if not isinstance(msg.id, int):
-            print(f"⛔ Пропущено: нет id: {msg}")
-            continue
-
-        if msg.id <= last_id:
-            print(f"⏭ Пропущено: msg.id {msg.id} <= last_id {last_id}")
-            break
-
-        if not msg.text:
-            print(f"📭 msg.id {msg.id}: нет текста")
-            continue
-
         if msg.from_user and msg.from_user.is_self:
-            print(f"🙋 msg.id {msg.id}: мое сообщение")
+            continue
+        if msg.date < after_ts:
+            break
+        if not is_trigger(msg.text):
             continue
 
-        if is_trigger(msg.text):
-            forwarded_text = format_forwarded_message(msg)
-            msg_hash = get_hash(forwarded_text)
+        forwarded_text = format_forwarded_message(msg)
+        msg_hash = hash_message(forwarded_text)
 
-            if msg_hash in set(known_hashes):
-                print(f"🛑 msg.id {msg.id}: дубликат (по хешу)")
-                continue
+        if is_hash_known(group_id, msg_hash):
+            print(f"⚠️ Хеш уже есть, не пересылаем: {msg.id}")
+            continue
 
-            try:
-                await client.send_message(TARGET_GROUP_ID, forwarded_text)
-                save_forwarded_hash(group_id, msg_hash)
-                print(f"📤 Переслано: {msg.text[:40]}...")
-            except Exception as e:
-                print(f"❌ Ошибка при пересылке: {e}")
-        else:
-            print(f"🚫 msg.id {msg.id}: не подходит под триггер")
-
-        if msg.id > max_id:
-            max_id = msg.id
-
-    if max_id > last_id:
-        save_last_id(group_id, max_id)
-        print(f"💾 Сохранили новый max_id: {max_id}")
+        try:
+            await client.send_message(TARGET_GROUP_ID, forwarded_text)
+            save_hash(group_id, msg_hash)
+            print(f"📤 Переслано: {msg.id}")
+        except Exception as e:
+            print(f"❌ Ошибка при пересылке: {e}")
 
 async def main():
     now = datetime.now(timezone.utc)
     after = now - timedelta(minutes=PERIOD_MINUTES)
     print(f"🕒 Период: {after} ... {now}")
     print("📥 SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
-    print(f"📤 TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
+    print(f"📤 TARGET_GROUP_ID: {TARGET_GROUP_ID}")
 
     async with app:
         try:
-            chat = await app.get_chat(TARGET_GROUP_ID)
-            print("ℹ️ Информация о целевой группе:", chat)
+            await app.get_chat(TARGET_GROUP_ID)
         except Exception as e:
             print(f"❌ Не удалось получить целевую группу: {e}")
+            return
 
         for group in SOURCE_GROUP_IDS:
             await process_group(app, group, after)
