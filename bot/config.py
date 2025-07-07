@@ -7,20 +7,18 @@ API_HASH = os.getenv("TG_API_HASH", "")
 SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
 
 def parse_chat_id(x):
-    """Возвращает int для числовых id и str для username (без @)"""
     x = x.strip()
     if x.lstrip("-").isdigit():
         return int(x)
     return x
 
-# Список ID групп или username групп (без @), которые надо мониторить
-# Пример для переменной окружения: "testejfct01,-1001234567890"
+# Список ID групп, которые надо мониторить (группа-источник)
 SOURCE_GROUP_IDS = [
-    parse_chat_id(x) for x in os.getenv("SOURCE_GROUP_IDS", "testejfct01").split(",")
+    -1002803775374
 ]
 
 # ID целевой группы (куда будут пересылаться сообщения)
-TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID", 0))
+TARGET_GROUP_ID = -1002467611553
 
 # Список слов/фраз для фильтрации (чувствительность к регистру отключена)
 TRIGGER_WORDS = [
