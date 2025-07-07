@@ -63,34 +63,28 @@ async def process_group(client, group_id, after_ts):
     async for msg in client.get_chat_history(group_id, limit=100):
         print(f"▶️ Получено сообщение: {msg}")
 
-        # Проверка типа
         if not isinstance(msg, Message):
             print(f"⛔ Пропущено: не объект Message: {type(msg)}")
             continue
 
-        # Проверка наличия ID
-        if not isinstance(msg.message_id, int):
-            print(f"⛔ Пропущено: нет message_id: {msg}")
+        if not isinstance(msg.id, int):
+            print(f"⛔ Пропущено: нет id: {msg}")
             continue
 
-        # Пропуск старых сообщений
-        if msg.message_id <= last_id:
-            print(f"⏭ Пропущено: msg_id {msg.message_id} <= last_id {last_id}")
+        if msg.id <= last_id:
+            print(f"⏭ Пропущено: msg.id {msg.id} <= last_id {last_id}")
             break
 
-        # Пропуск сообщений без текста
         if not msg.text:
-            print(f"📭 msg_id {msg.message_id}: нет текста")
+            print(f"📭 msg.id {msg.id}: нет текста")
             continue
 
-        # Пропуск своих сообщений
         if msg.from_user and msg.from_user.is_self:
-            print(f"🙋 msg_id {msg.message_id}: мое сообщение")
+            print(f"🙋 msg.id {msg.id}: мое сообщение")
             continue
 
-        # Фильтрация по триггеру
         if is_trigger(msg.text):
-            print(f"✅ msg_id {msg.message_id}: подходит под триггер")
+            print(f"✅ msg.id {msg.id}: подходит под триггер")
             try:
                 forwarded_text = format_forwarded_message(msg)
                 await client.send_message(TARGET_GROUP_ID, forwarded_text)
@@ -98,11 +92,10 @@ async def process_group(client, group_id, after_ts):
             except Exception as e:
                 print(f"❌ Ошибка при пересылке: {e}")
         else:
-            print(f"🚫 msg_id {msg.message_id}: не подходит под триггер")
+            print(f"🚫 msg.id {msg.id}: не подходит под триггер")
 
-        # Обновление max_id
-        if msg.message_id > max_id:
-            max_id = msg.message_id
+        if msg.id > max_id:
+            max_id = msg.id
 
     if max_id > last_id:
         save_last_id(group_id, max_id)
@@ -114,14 +107,14 @@ async def main():
     print(f"🕒 Период: {after} ... {now}")
     print("📥 SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
     print(f"📤 TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
-    
+
     async with app:
         try:
             chat = await app.get_chat(TARGET_GROUP_ID)
             print("ℹ️ Информация о целевой группе:", chat)
         except Exception as e:
             print(f"❌ Не удалось получить целевую группу: {e}")
-        
+
         for group in SOURCE_GROUP_IDS:
             await process_group(app, group, after)
 
