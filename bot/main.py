@@ -25,7 +25,10 @@ def load_last_id(group_id):
     fname = get_last_id_file(group_id)
     if os.path.exists(fname):
         with open(fname, "r") as f:
-            return int(f.read().strip())
+            try:
+                return int(f.read().strip())
+            except:
+                return 0
     return 0
 
 def save_last_id(group_id, msg_id):
@@ -38,7 +41,12 @@ def format_forwarded_message(msg):
     text = msg.text or ""
     text += "\n\n"
     # Ссылка на группу
-    chat_link = f"https://t.me/{msg.chat.username}" if msg.chat.username else f"https://t.me/c/{str(msg.chat.id)[4:]}"
+    if msg.chat.username:
+        chat_link = f"https://t.me/{msg.chat.username}"
+    elif str(msg.chat.id).startswith("-100"):
+        chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}"
+    else:
+        chat_link = str(msg.chat.id)
     text += chat_link + "\n"
     # Название группы
     text += (msg.chat.title or str(msg.chat.id)) + "\n"
@@ -56,6 +64,8 @@ async def process_group(client, group_id, after_ts):
     max_id = last_id
     print(f"Обработка группы: {group_id}, last_message_id: {last_id}")
     async for msg in client.get_chat_history(group_id, limit=100):
+        if not hasattr(msg, "message_id") or msg.message_id is None:
+            continue
         if msg.message_id <= last_id:
             break
         if not msg.text:
