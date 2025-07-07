@@ -81,8 +81,12 @@ async def process_group(client, group_id, after_ts):
             continue
         if msg.from_user and msg.from_user.is_self:
             continue
-        if msg.date < after_ts:
+
+        # ✅ Исправление проблемы сравнения дат
+        msg_time = msg.date.replace(tzinfo=timezone.utc)
+        if msg_time < after_ts:
             break
+
         if not is_trigger(msg.text):
             continue
 
