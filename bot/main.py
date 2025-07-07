@@ -3,15 +3,10 @@ import os
 from datetime import datetime, timedelta, timezone
 from pyrogram import Client
 from pyrogram.types import Message
-from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TRIGGER_WORDS
+from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
 
-# 🔒 Числовой ID целевой группы
-TARGET_GROUP_ID = -1002854897694
-
-# Количество минут для проверки периода (не критично, просто для отладки)
 PERIOD_MINUTES = 10
 
-# Клиент UserBot
 app = Client(
     "userbot",
     api_id=API_ID,
@@ -93,9 +88,9 @@ async def process_group(client, group_id):
                 await client.send_message(TARGET_GROUP_ID, formatted)
                 print(f"📤 Переслано сообщение: {msg.text[:40]}")
             except Exception as e:
-                print(f"❌ Ошибка пересылки msg.id {msg.id}: {e}")
+                print(f"❌ Ошибка пересылки: {e}")
 
-        # Сохраняем как обработанное в любом случае
+        # Сохраняем ID как обработанный в любом случае
         save_processed_id(group_id, msg.id)
 
 async def main():
