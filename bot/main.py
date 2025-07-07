@@ -1,12 +1,9 @@
 import asyncio
-import os
-from datetime import datetime, timedelta, timezone
 from pyrogram import Client
+from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
+from datetime import datetime, timedelta, timezone
+import os
 from pyrogram.types import Message
-from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TRIGGER_WORDS
-
-# Числовой ID целевой группы
-TARGET_GROUP_ID = -1002854897694
 
 PERIOD_MINUTES = 10
 
@@ -17,14 +14,14 @@ app = Client(
     session_string=SESSION_STRING
 )
 
-def is_trigger(text: str) -> bool:
+def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
-def get_id_file(group_id) -> str:
+def get_id_file(group_id):
     safe_id = str(group_id).replace("@", "").replace("-", "m")
     return f"processed_ids_{safe_id}.txt"
 
-def load_processed_ids(group_id) -> set:
+def load_processed_ids(group_id):
     fname = get_id_file(group_id)
     if os.path.exists(fname):
         with open(fname, "r") as f:
@@ -34,83 +31,77 @@ def load_processed_ids(group_id) -> set:
                 return set()
     return set()
 
-def save_processed_id(group_id, msg_id: int):
+def save_processed_id(group_id, msg_id):
     fname = get_id_file(group_id)
     with open(fname, "a") as f:
         f.write(f"{msg_id}\n")
 
-def format_forwarded_message(msg: Message) -> str:
+def format_forwarded_message(msg):
     text = msg.text or ""
     text += "\n\n"
-
     if msg.chat.username:
         chat_link = f"https://t.me/{msg.chat.username}"
     elif str(msg.chat.id).startswith("-100"):
         chat_link = f"https://t.me/c/{str(msg.chat.id)[4:]}"
     else:
         chat_link = str(msg.chat.id)
-
     text += chat_link + "\n"
     text += (msg.chat.title or str(msg.chat.id)) + "\n"
-
     if msg.from_user and msg.from_user.username:
         text += f"@{msg.from_user.username}"
     elif msg.from_user:
         text += f"ID: {msg.from_user.id}"
     else:
         text += "Без имени"
-
     return text
 
 async def process_group(client, group_id):
     processed_ids = load_processed_ids(group_id)
-    print(f"\n🔍 Обработка группы: {group_id}, уже обработано: {len(processed_ids)} сообщений")
+    print(f"\n🔍 Обработка группы: {group_id}, обработано ранее: {len(processed_ids)} сообщений")
 
     async for msg in client.get_chat_history(group_id, limit=100):
         if not isinstance(msg, Message) or not isinstance(msg.id, int):
             continue
 
         if msg.id in processed_ids:
-            print(f"⏭ Пропущено msg.id {msg.id}: уже обработан")
+            print(f"⏭ msg.id {msg.id} уже обработан")
             continue
 
         if not msg.text:
-            print(f"📭 Пропущено msg.id {msg.id}: нет текста")
-            save_processed_id(group_id, msg.id)
+            print(f"📭 msg.id {msg.id}: нет текста")
             continue
 
         if msg.from_user and msg.from_user.is_self:
-            print(f"🙋 Пропущено msg.id {msg.id}: мое сообщение")
-            save_processed_id(group_id, msg.id)
+            print(f"🙋 msg.id {msg.id}: мое сообщение")
             continue
 
         if is_trigger(msg.text):
-            print(f"✅ Найдено ключевое слово в msg.id {msg.id}")
+            print(f"✅ msg.id {msg.id}: подходит под триггер")
             try:
-                formatted = format_forwarded_message(msg)
-                await client.send_message(TARGET_GROUP_ID, formatted)
-                print(f"📤 Переслано сообщение: {msg.text[:40]}")
+                forwarded_text = format_forwarded_message(msg)
+                await client.send_message(TARGET_GROUP_ID, forwarded_text)
+                print(f"📤 Переслано: {msg.text[:40]}...")
             except Exception as e:
-                print(f"❌ Ошибка пересылки msg.id {msg.id}: {e}")
+                print(f"❌ Ошибка при пересылке: {e}")
+        else:
+            print(f"🚫 msg.id {msg.id}: не подходит под триггер")
 
-        # Сохраняем как обработанное в любом случае
+        # Отмечаем как обработанное в любом случае
         save_processed_id(group_id, msg.id)
 
 async def main():
     now = datetime.now(timezone.utc)
     after = now - timedelta(minutes=PERIOD_MINUTES)
     print(f"🕒 Период: {after} ... {now}")
-    print("📥 Источник: ", SOURCE_GROUP_IDS)
-    print("📤 Целевая группа:", TARGET_GROUP_ID)
+    print("📥 SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
+    print(f"📤 TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
 
     async with app:
         try:
             chat = await app.get_chat(TARGET_GROUP_ID)
             print("ℹ️ Информация о целевой группе:", chat)
         except Exception as e:
-            print(f"❌ Не удалось получить чат: {e}")
-            print("Проверь, что userbot состоит в целевой группе с этим ID и что ID правильный.")
-            return  # Выход из main
+            print(f"❌ Не удалось получить целевую группу: {e}")
 
         for group in SOURCE_GROUP_IDS:
             await process_group(app, group)
