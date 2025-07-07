@@ -6,9 +6,17 @@ API_HASH = os.getenv("TG_API_HASH", "")
 # Строка сессии userbot (Pyrogram StringSession)
 SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
 
-# Список ID групп, которые надо мониторить (обязательно указывать со знаком минус! Пример: -1001234567890)
+def parse_chat_id(x):
+    """Возвращает int для числовых id и str для username (без @)"""
+    x = x.strip()
+    if x.lstrip("-").isdigit():
+        return int(x)
+    return x
+
+# Список ID групп или username групп (без @), которые надо мониторить
+# Пример для переменной окружения: "testejfct01,-1001234567890"
 SOURCE_GROUP_IDS = [
-    int(x) for x in os.getenv("SOURCE_GROUP_IDS", "-1002803775374").split(",")
+    parse_chat_id(x) for x in os.getenv("SOURCE_GROUP_IDS", "testejfct01").split(",")
 ]
 
 # ID целевой группы (куда будут пересылаться сообщения)
