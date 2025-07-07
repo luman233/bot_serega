@@ -14,13 +14,18 @@ from config import (
     TRIGGER_WORDS,
 )
 
+# Настройки
 PERIOD_MINUTES = 10
 
-# Получаем абсолютный путь к папке state/
+# Путь к директории с текущим файлом
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_DIR = os.path.join(BASE_DIR, "state")
 
-# Инициализируем клиент Pyrogram
+# Отладочная информация
+print(f"\n📂 Текущая рабочая директория: {os.getcwd()}")
+print(f"📁 Ожидаемая папка state: {STATE_DIR}")
+
+# Инициализация клиента Pyrogram
 app = Client(
     "userbot",
     api_id=API_ID,
@@ -29,50 +34,46 @@ app = Client(
 )
 
 # Проверка на триггерные слова
-def is_trigger(text):
+def is_trigger(text: str) -> bool:
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
-# Убедиться, что папка state существует
+# Создание директории состояния, если не существует
 def ensure_state_dir():
     os.makedirs(STATE_DIR, exist_ok=True)
 
-# Получить путь к JSON-файлу для конкретной группы
+# Формирование пути к JSON-файлу состояния
 def get_state_file(group_id):
     safe_id = str(group_id).replace("@", "").replace("-", "m")
     return os.path.join(STATE_DIR, f"state_{safe_id}.json")
 
-# Загрузить состояние группы (last_id и hashes)
+# Загрузка состояния из файла
 def load_group_state(group_id):
     ensure_state_dir()
-    fname = get_state_file(group_id)
-    if os.path.exists(fname):
+    path = get_state_file(group_id)
+    if os.path.exists(path):
         try:
-            with open(fname, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"⚠️ Ошибка чтения state-файла: {e}")
+            print(f"⚠️ Ошибка чтения state-файла {path}: {e}")
     return {"last_id": 0, "hashes": []}
 
-# Сохранить состояние группы
+# Сохранение состояния в файл
 def save_group_state(group_id, state):
     ensure_state_dir()
-    fname = get_state_file(group_id)
+    path = get_state_file(group_id)
     try:
-        with open(fname, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(state, f)
     except Exception as e:
-        print(f"⚠️ Ошибка записи state-файла: {e}")
+        print(f"⚠️ Ошибка записи state-файла {path}: {e}")
 
-# Получить текст из сообщения (text или caption)
-def get_text_from_message(msg: Message):
+# Получение текста из сообщения
+def get_text_from_message(msg: Message) -> str:
     return msg.text or msg.caption or ""
 
-# Посчитать хеш текста
-def hash_text(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-# Подготовить форматированное сообщение для пересылки
-def format_forwarded_message(msg: Message):
+# Форматирование текста пересылаемого сообщения
+def format_forwarded_message(msg: Message) -> str:
     text = get_text_from_message(msg)
     text += "\n\n"
     if msg.chat.username:
@@ -91,7 +92,11 @@ def format_forwarded_message(msg: Message):
         text += "Без имени"
     return text
 
-# Обработка группы
+# Получение хеша текста
+def hash_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+# Обработка сообщений в одной группе
 async def process_group(client, group_id, after_ts):
     state = load_group_state(group_id)
     last_id = state.get("last_id", 0)
@@ -119,14 +124,14 @@ async def process_group(client, group_id, after_ts):
             msg_hash = hash_text(forwarded_text)
 
             if msg_hash in recent_hashes:
-                print(f"🔁 Дубликат, msg.id {msg.id}")
+                print(f"🔁 Повтор текста, msg.id {msg.id}, не отправляем снова")
                 continue
 
             try:
                 await client.send_message(TARGET_GROUP_ID, forwarded_text)
                 print(f"📤 Переслано: {text[:40]}...")
                 recent_hashes.append(msg_hash)
-                recent_hashes = recent_hashes[-50:]  # храним только последние 50
+                recent_hashes = recent_hashes[-50:]  # последние 50 хешей
             except Exception as e:
                 print(f"❌ Ошибка при пересылке: {e}")
         else:
@@ -138,16 +143,19 @@ async def process_group(client, group_id, after_ts):
     if max_id > last_id:
         state["last_id"] = max_id
         state["hashes"] = recent_hashes
-        print(f"💾 Сохраняем state в файл:\n  → {get_state_file(group_id)}")
+        print(f"💾 Сохраняем state: {state}")
+        print(f"📄 Файл состояния: {get_state_file(group_id)}")
         save_group_state(group_id, state)
 
-# Главная функция
+# Главная точка входа
 async def main():
     now = datetime.now(timezone.utc)
     after = now - timedelta(minutes=PERIOD_MINUTES)
-    print(f"🕒 Период: {after} ... {now}")
+    print(f"\n🕒 Период: {after} ... {now}")
     print("📥 SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
     print(f"📤 TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
+
+    ensure_state_dir()
 
     async with app:
         try:
