@@ -17,7 +17,6 @@ def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
 def get_last_id_file(group_id):
-    """Имя файла для хранения последнего message_id для каждой группы"""
     safe_id = str(group_id).replace("@", "").replace("-", "m")
     return f"last_message_id_{safe_id}.txt"
 
@@ -37,10 +36,8 @@ def save_last_id(group_id, msg_id):
         f.write(str(msg_id))
 
 def format_forwarded_message(msg):
-    # Само сообщение
     text = msg.text or ""
     text += "\n\n"
-    # Ссылка на группу
     if msg.chat.username:
         chat_link = f"https://t.me/{msg.chat.username}"
     elif str(msg.chat.id).startswith("-100"):
@@ -48,9 +45,7 @@ def format_forwarded_message(msg):
     else:
         chat_link = str(msg.chat.id)
     text += chat_link + "\n"
-    # Название группы
     text += (msg.chat.title or str(msg.chat.id)) + "\n"
-    # Ссылка на пользователя
     if msg.from_user and msg.from_user.username:
         text += f"@{msg.from_user.username}"
     elif msg.from_user:
@@ -65,14 +60,19 @@ async def process_group(client, group_id, after_ts):
     print(f"Обработка группы: {group_id}, last_message_id: {last_id}")
     async for msg in client.get_chat_history(group_id, limit=100):
         if not hasattr(msg, "message_id") or msg.message_id is None:
+            print("Нет message_id")
             continue
         if msg.message_id <= last_id:
+            print(f"msg_id {msg.message_id} <= last_id {last_id}")
             break
         if not msg.text:
+            print(f"msg_id {msg.message_id}: нет текста")
             continue
         if msg.from_user and msg.from_user.is_self:
+            print(f"msg_id {msg.message_id}: мое же сообщение")
             continue
         if is_trigger(msg.text):
+            print(f"msg_id {msg.message_id}: подходит под триггер")
             try:
                 forwarded_text = format_forwarded_message(msg)
                 await client.send_message(
@@ -82,6 +82,8 @@ async def process_group(client, group_id, after_ts):
                 print(f"Переслано: {msg.text[:40]}")
             except Exception as e:
                 print(f"Ошибка при пересылке: {e}")
+        else:
+            print(f"msg_id {msg.message_id}: не подходит под триггер")
         if msg.message_id > max_id:
             max_id = msg.message_id
     if max_id > last_id:
@@ -94,7 +96,6 @@ async def main():
     print("SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
     print(f"TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
     async with app:
-        # Отладка: получить инфу о целевой группе
         try:
             chat = await app.get_chat(TARGET_GROUP_ID)
             print("Информация о целевой группе:", chat)
