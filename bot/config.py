@@ -26,8 +26,8 @@ SOURCE_GROUP_IDS = [
     if g.strip()
 ]
 
-# Жёстко прописанный ID целевой группы:
-TARGET_GROUP_ID = -1002854897694
+# Вот так — username без @:
+TARGET_GROUP_ID = "yvjyfvkkinvf"
 
 TRIGGER_WORDS = [
     "спам",
