@@ -20,14 +20,15 @@ def parse_chat_id(x):
     # Просто username без @
     return x
 
+# Можно указать через запятую как id, так и username групп-источников
 SOURCE_GROUP_IDS = [
     parse_chat_id(g)
     for g in os.getenv("SOURCE_GROUP_IDS", "").split(",")
     if g.strip()
 ]
 
-# Вот так — username без @:
-TARGET_GROUP_ID = "yvjyfvkkinvf"
+# Жёстко прописанный username или id целевой группы
+TARGET_GROUP_ID = "yvjyfvkkinvf"  # или "-1002854897694" если нужен id
 
 TRIGGER_WORDS = [
     "спам",
