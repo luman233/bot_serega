@@ -7,8 +7,10 @@ import os
 from pyrogram.types import Message
 
 PERIOD_MINUTES = 10
-HASH_DIR = "hashes"
-HASH_TTL_DAYS = 7  # Хеши старше этого срока удаляются
+HASH_TTL_DAYS = 7
+
+BASE_DIR = os.path.dirname(__file__)
+HASH_DIR = os.path.join(BASE_DIR, "hashes")
 
 app = Client(
     "userbot",
@@ -39,6 +41,7 @@ def save_hash(group_id, hash_str):
     path = hash_file_path(group_id, hash_str)
     with open(path, "w") as f:
         f.write(datetime.now(timezone.utc).isoformat())
+    print(f"💾 Сохранили хеш {hash_str[:8]} для группы {group_id}")
 
 def clean_old_hashes(group_id):
     group_dir = ensure_hash_dir(group_id)
@@ -82,7 +85,6 @@ async def process_group(client, group_id, after_ts):
         if msg.from_user and msg.from_user.is_self:
             continue
 
-        # ✅ Исправление проблемы сравнения дат
         msg_time = msg.date.replace(tzinfo=timezone.utc)
         if msg_time < after_ts:
             break
@@ -94,7 +96,7 @@ async def process_group(client, group_id, after_ts):
         msg_hash = hash_message(forwarded_text)
 
         if is_hash_known(group_id, msg_hash):
-            print(f"⚠️ Хеш уже есть, не пересылаем: {msg.id}")
+            print(f"⚠️ Уже пересылали (хеш): {msg.id}")
             continue
 
         try:
