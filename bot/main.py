@@ -1,55 +1,40 @@
-import asyncio
-from pyrogram import Client
-from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
-from datetime import datetime, timedelta, timezone
+import os
+import re
 
-PERIOD_MINUTES = 10
+API_ID = int(os.getenv("TG_API_ID", 0))
+API_HASH = os.getenv("TG_API_HASH", "")
+SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
 
-app = Client(
-    "userbot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    session_string=SESSION_STRING
-)
+def parse_chat_id(x):
+    x = x.strip()
+    # Если ссылка вида https://t.me/username
+    match = re.match(r"https?://t\.me/([A-Za-z0-9_]+)", x)
+    if match:
+        return match.group(1)
+    # Если username с @
+    if x.startswith("@"):
+        return x[1:]
+    # Если числовой id
+    if x.lstrip("-").isdigit():
+        return int(x)
+    # Просто username без @
+    return x
 
-def is_trigger(text):
-    return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
+# Можно указать через запятую как id, так и username групп-источников
+SOURCE_GROUP_IDS = [
+    parse_chat_id(g)
+    for g in os.getenv("SOURCE_GROUP_IDS", "").split(",")
+    if g.strip()
+]
 
-async def process_group(client, group_id, after_ts):
-    async for msg in client.get_chat_history(group_id, limit=100):
-        if msg.date.replace(tzinfo=timezone.utc) < after_ts:
-            break
-        if not msg.text:
-            continue
-        if msg.from_user and msg.from_user.is_self:
-            continue
-        if is_trigger(msg.text):
-            try:
-                print(f"Попытка отправить в TARGET_GROUP_ID = {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
-                await client.send_message(
-                    TARGET_GROUP_ID,
-                    f"[{msg.chat.title or msg.chat.id}] {msg.text}"
-                )
-                print(f"Переслано: {msg.text[:40]}")
-            except Exception as e:
-                print(f"Ошибка при пересылке: {e}")
+# Жёстко прописанный username или id целевой группы
+TARGET_GROUP_ID = "yvjyfvkkinvf"  # или "-1002854897694" если нужен id
 
-async def main():
-    now = datetime.now(timezone.utc)
-    after = now - timedelta(minutes=PERIOD_MINUTES)
-    print(f"Период: {after} ... {now}")
-    print("SOURCE_GROUP_IDS:", SOURCE_GROUP_IDS)
-    print(f"TARGET_GROUP_ID: {TARGET_GROUP_ID} (type: {type(TARGET_GROUP_ID)})")
-    async with app:
-        # Для отладки: убедимся, что бот видит целевую группу
-        try:
-            chat = await app.get_chat(TARGET_GROUP_ID)
-            print("Информация о целевой группе:", chat)
-        except Exception as e:
-            print(f"Не удалось получить целевую группу: {e}")
-        for group in SOURCE_GROUP_IDS:
-            print(f"Обработка группы: {group}")
-            await process_group(app, group, after)
-
-if __name__ == "__main__":
-    app.run(main())
+TRIGGER_WORDS = [
+    "спам",
+    "реклама",
+    "buy now",
+    "free money",
+    "example phrase",
+    "тестовое слово",
+]
