@@ -57,7 +57,6 @@ def format_forwarded_message(msg):
 
 async def process_group(client, group_id, after_ts):
     last_id = load_last_id(group_id)
-    max_id = last_id
     print(f"\n🔍 Обработка группы: {group_id}, last_message_id: {last_id}")
 
     async for msg in client.get_chat_history(group_id, limit=100):
@@ -77,10 +76,14 @@ async def process_group(client, group_id, after_ts):
 
         if not msg.text:
             print(f"📭 msg.id {msg.id}: нет текста")
+            last_id = msg.id
+            save_last_id(group_id, last_id)
             continue
 
         if msg.from_user and msg.from_user.is_self:
             print(f"🙋 msg.id {msg.id}: мое сообщение")
+            last_id = msg.id
+            save_last_id(group_id, last_id)
             continue
 
         if is_trigger(msg.text):
@@ -94,12 +97,10 @@ async def process_group(client, group_id, after_ts):
         else:
             print(f"🚫 msg.id {msg.id}: не подходит под триггер")
 
-        if msg.id > max_id:
-            max_id = msg.id
-
-    if max_id > last_id:
-        save_last_id(group_id, max_id)
-        print(f"💾 Сохранили новый max_id: {max_id}")
+        # ✅ Обновляем last_id после любого сообщения
+        last_id = msg.id
+        save_last_id(group_id, last_id)
+        print(f"💾 Обновили last_id: {last_id}")
 
 async def main():
     now = datetime.now(timezone.utc)
