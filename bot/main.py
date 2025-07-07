@@ -17,24 +17,24 @@ app = Client(
 def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
-def get_id_file(group_id):
+def get_last_id_file(group_id):
     safe_id = str(group_id).replace("@", "").replace("-", "m")
-    return f"processed_ids_{safe_id}.txt"
+    return f"last_message_id_{safe_id}.txt"
 
-def load_processed_ids(group_id):
-    fname = get_id_file(group_id)
+def load_last_id(group_id):
+    fname = get_last_id_file(group_id)
     if os.path.exists(fname):
         with open(fname, "r") as f:
             try:
-                return set(map(int, f.read().strip().splitlines()))
+                return int(f.read().strip())
             except:
-                return set()
-    return set()
+                return 0
+    return 0
 
-def save_processed_id(group_id, msg_id):
-    fname = get_id_file(group_id)
-    with open(fname, "a") as f:
-        f.write(f"{msg_id}\n")
+def save_last_id(group_id, msg_id):
+    fname = get_last_id_file(group_id)
+    with open(fname, "w") as f:
+        f.write(str(msg_id))
 
 def format_forwarded_message(msg):
     text = msg.text or ""
@@ -55,17 +55,25 @@ def format_forwarded_message(msg):
         text += "Без имени"
     return text
 
-async def process_group(client, group_id):
-    processed_ids = load_processed_ids(group_id)
-    print(f"\n🔍 Обработка группы: {group_id}, обработано ранее: {len(processed_ids)} сообщений")
+async def process_group(client, group_id, after_ts):
+    last_id = load_last_id(group_id)
+    max_id = last_id
+    print(f"\n🔍 Обработка группы: {group_id}, last_message_id: {last_id}")
 
     async for msg in client.get_chat_history(group_id, limit=100):
-        if not isinstance(msg, Message) or not isinstance(msg.id, int):
+        print(f"▶️ Получено сообщение: {msg}")
+
+        if not isinstance(msg, Message):
+            print(f"⛔ Пропущено: не объект Message: {type(msg)}")
             continue
 
-        if msg.id in processed_ids:
-            print(f"⏭ msg.id {msg.id} уже обработан")
+        if not isinstance(msg.id, int):
+            print(f"⛔ Пропущено: нет id: {msg}")
             continue
+
+        if msg.id <= last_id:
+            print(f"⏭ Пропущено: msg.id {msg.id} <= last_id {last_id}")
+            break
 
         if not msg.text:
             print(f"📭 msg.id {msg.id}: нет текста")
@@ -86,8 +94,12 @@ async def process_group(client, group_id):
         else:
             print(f"🚫 msg.id {msg.id}: не подходит под триггер")
 
-        # Отмечаем как обработанное в любом случае
-        save_processed_id(group_id, msg.id)
+        if msg.id > max_id:
+            max_id = msg.id
+
+    if max_id > last_id:
+        save_last_id(group_id, max_id)
+        print(f"💾 Сохранили новый max_id: {max_id}")
 
 async def main():
     now = datetime.now(timezone.utc)
@@ -104,7 +116,7 @@ async def main():
             print(f"❌ Не удалось получить целевую группу: {e}")
 
         for group in SOURCE_GROUP_IDS:
-            await process_group(app, group)
+            await process_group(app, group, after)
 
 if __name__ == "__main__":
     app.run(main())
