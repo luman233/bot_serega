@@ -20,7 +20,7 @@ def parse_chat_id(x):
     # Просто username без @
     return x
 
-# Можно указать через запятую как id, так и username групп-источников
+# Источник можно указать через запятую как id, так и username групп-источников, напр. testgroup1,-1001234567890
 SOURCE_GROUP_IDS = [
     parse_chat_id(g)
     for g in os.getenv("SOURCE_GROUP_IDS", "").split(",")
