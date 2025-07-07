@@ -8,7 +8,7 @@ SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
 
 # Список ID групп, которые надо мониторить (обязательно указывать со знаком минус! Пример: -1001234567890)
 SOURCE_GROUP_IDS = [
-    int(x) for x in os.getenv("SOURCE_GROUP_IDS", "-1001234567890,-1009876543210").split(",")
+    int(x) for x in os.getenv("SOURCE_GROUP_IDS", "-1002803775374,-1009876543210").split(",")
 ]
 
 # ID целевой группы (куда будут пересылаться сообщения)
