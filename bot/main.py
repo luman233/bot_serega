@@ -69,7 +69,7 @@ def format_forwarded_message(msg):
     if trigger:
         text = bold_trigger_word(text, trigger)
 
-    result = text.strip() + "\n" + "━" * 30 + "\n\n"
+    result = text.strip() + "\n\n" + "━" * 30 + "\n"
 
     # Ссылка на группу
     if msg.chat.username:
@@ -80,7 +80,7 @@ def format_forwarded_message(msg):
         result += f"🌐 ID: {msg.chat.id}\n"
 
     # Название группы
-    result += f"📢 Группа: {msg.chat.title or msg.chat.id}\n"
+    result += f"🪑 Группа: {msg.chat.title or msg.chat.id}\n"
 
     # Автор
     if msg.from_user and msg.from_user.username:
