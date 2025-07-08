@@ -69,7 +69,7 @@ def format_forwarded_message(msg):
     if trigger:
         text = bold_trigger_word(text, trigger)
 
-    result = text.strip() + "\n" + "━" * 30 + "\n\n"
+    result = text.strip() + "\n\n" + "—" * 15 + "\n"
 
     # Ссылка на конкретное сообщение в группе: https://t.me/<username>/<message_id>
     # Если нет username, можно сформировать ссылку по ID, но она нерабочая, поэтому лучше указать ID
