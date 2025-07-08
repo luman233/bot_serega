@@ -31,10 +31,10 @@ SOURCE_GROUP_IDS = [
 TARGET_GROUP_ID = "yvjyfvkkinvf"  # или "-1002854897694" если нужен id
 
 TRIGGER_WORDS = [
-    "спам",
-    "реклама",
-    "buy now",
-    "free money",
-    "example phrase",
+    "плитка",
+    "ремонт",
+    "укладка",
+    "разнорабочий",
+    "Ищу бедолагу",
     "тестовое слово",
 ]
