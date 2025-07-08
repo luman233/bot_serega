@@ -69,18 +69,18 @@ def format_forwarded_message(msg):
     if trigger:
         text = bold_trigger_word(text, trigger)
 
-    result = text.strip() + "\n\n" + "━" * 30 + "\n"
+    result = text.strip() + "\n" + "━" * 30 + "\n\n"
 
-    # Ссылка на группу
+    # Ссылка на конкретное сообщение в группе: https://t.me/<username>/<message_id>
+    # Если нет username, можно сформировать ссылку по ID, но она нерабочая, поэтому лучше указать ID
     if msg.chat.username:
-        result += f"🪑 https://t.me/{msg.chat.username}\n"
-    elif str(msg.chat.id).startswith("-100"):
-        result += f"🪑 https://t.me/c/{str(msg.chat.id)[4:]}\n"
+        message_link = f"https://t.me/{msg.chat.username}/{msg.id}"
+        group_display = f"[{msg.chat.title}]({message_link})"
     else:
-        result += f"🪑 ID: {msg.chat.id}\n"
+        # Если username нет, то просто текст без ссылки
+        group_display = msg.chat.title or str(msg.chat.id)
 
-    # Название группы
-    result += f"🪚 Группа: {msg.chat.title or msg.chat.id}\n"
+    result += f"🪚 Группа: {group_display}\n"
 
     # Автор
     if msg.from_user and msg.from_user.username:
