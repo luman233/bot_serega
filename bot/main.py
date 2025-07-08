@@ -7,6 +7,7 @@ from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GR
 from datetime import datetime, timedelta, timezone
 
 PERIOD_MINUTES = 10
+MAX_HASHES = 50
 BASE_DIR = os.path.dirname(__file__)
 HASH_DIR = os.path.join(BASE_DIR, "hashes")
 
@@ -24,21 +25,30 @@ def ensure_group_dir(group_id):
 def hash_message(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-def get_last_hash_path(group_id):
-    return os.path.join(ensure_group_dir(group_id), "last_hash.txt")
+def get_hash_list_path(group_id):
+    return os.path.join(ensure_group_dir(group_id), "hashes.txt")
 
-def load_last_hash(group_id):
-    path = get_last_hash_path(group_id)
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            return f.read().strip()
-    return None
+def load_hash_list(group_id):
+    path = get_hash_list_path(group_id)
+    if not os.path.exists(path):
+        return []
+    with open(path, "r") as f:
+        return [line.strip() for line in f if line.strip()]
 
-def save_last_hash(group_id, hash_str):
-    path = get_last_hash_path(group_id)
+def save_hash_list(group_id, hashes):
+    path = get_hash_list_path(group_id)
     with open(path, "w") as f:
-        f.write(hash_str)
-    print(f"💾 Сохранили последний хеш: {hash_str[:8]} для группы {group_id}")
+        f.write("\n".join(hashes[-MAX_HASHES:]))
+    print(f"💾 Сохранено {len(hashes[-MAX_HASHES:])} хешей для группы {group_id}")
+
+def is_known_hash(group_id, hash_str):
+    return hash_str in load_hash_list(group_id)
+
+def append_hash(group_id, hash_str):
+    hashes = load_hash_list(group_id)
+    if hash_str not in hashes:
+        hashes.append(hash_str)
+        save_hash_list(group_id, hashes)
 
 def format_forwarded_message(msg):
     text = msg.text or ""
@@ -60,7 +70,6 @@ def format_forwarded_message(msg):
 
 async def process_group(client, group_id, after_ts):
     print(f"\n🔍 Обработка группы: {group_id}")
-    last_hash = load_last_hash(group_id)
 
     async for msg in client.get_chat_history(group_id, limit=100):
         if not isinstance(msg, Message) or not msg.text or not isinstance(msg.id, int):
@@ -76,13 +85,13 @@ async def process_group(client, group_id, after_ts):
         text = format_forwarded_message(msg)
         msg_hash = hash_message(text)
 
-        if msg_hash == last_hash:
-            print(f"⚠️ Повторный хеш: {msg.id}")
+        if is_known_hash(group_id, msg_hash):
+            print(f"⚠️ Уже пересылали (хеш): {msg.id}")
             continue
 
         try:
             await client.send_message(TARGET_GROUP_ID, text)
-            save_last_hash(group_id, msg_hash)
+            append_hash(group_id, msg_hash)
             print(f"📤 Переслано: {msg.id}")
         except Exception as e:
             print(f"❌ Ошибка при пересылке: {e}")
