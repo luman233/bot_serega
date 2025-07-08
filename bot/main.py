@@ -73,22 +73,22 @@ def format_forwarded_message(msg):
 
     # Ссылка на группу
     if msg.chat.username:
-        result += f"🌐 https://t.me/{msg.chat.username}\n"
+        result += f"🪑 https://t.me/{msg.chat.username}\n"
     elif str(msg.chat.id).startswith("-100"):
-        result += f"🌐 https://t.me/c/{str(msg.chat.id)[4:]}\n"
+        result += f"🪑 https://t.me/c/{str(msg.chat.id)[4:]}\n"
     else:
-        result += f"🌐 ID: {msg.chat.id}\n"
+        result += f"🪑 ID: {msg.chat.id}\n"
 
     # Название группы
-    result += f"🪑 Группа: {msg.chat.title or msg.chat.id}\n"
+    result += f"🪚 Группа: {msg.chat.title or msg.chat.id}\n"
 
     # Автор
     if msg.from_user and msg.from_user.username:
-        result += f"👤 Автор: @{msg.from_user.username}"
+        result += f"🐻 Автор: @{msg.from_user.username}"
     elif msg.from_user:
-        result += f"👤 Автор: ID: {msg.from_user.id}"
+        result += f"🐻 Автор: ID: {msg.from_user.id}"
     else:
-        result += "👤 Автор: Неизвестен"
+        result += "🐻 Автор: Неизвестен"
 
     return result
 
