@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import os
+import re
 from pyrogram import Client
 from pyrogram.types import Message
 from config import API_ID, API_HASH, SESSION_STRING, SOURCE_GROUP_IDS, TARGET_GROUP_ID, TRIGGER_WORDS
@@ -15,6 +16,18 @@ app = Client("userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION
 
 def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
+
+def find_trigger_word(text):
+    for word in TRIGGER_WORDS:
+        pattern = re.compile(re.escape(word), re.IGNORECASE)
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    return None
+
+def bold_trigger_word(text, trigger_word):
+    pattern = re.compile(re.escape(trigger_word), re.IGNORECASE)
+    return pattern.sub(f"**{trigger_word}**", text, count=1)
 
 def ensure_group_dir(group_id):
     gid = str(group_id).replace("@", "").replace("-", "m")
@@ -52,21 +65,32 @@ def append_hash(group_id, hash_str):
 
 def format_forwarded_message(msg):
     text = msg.text or ""
-    text += "\n\n"
+    trigger = find_trigger_word(text)
+    if trigger:
+        text = bold_trigger_word(text, trigger)
+
+    result = text.strip() + "\n" + "━" * 30 + "\n\n"
+
+    # Ссылка на группу
     if msg.chat.username:
-        text += f"https://t.me/{msg.chat.username}\n"
+        result += f"🌐 https://t.me/{msg.chat.username}\n"
     elif str(msg.chat.id).startswith("-100"):
-        text += f"https://t.me/c/{str(msg.chat.id)[4:]}\n"
+        result += f"🌐 https://t.me/c/{str(msg.chat.id)[4:]}\n"
     else:
-        text += f"{msg.chat.id}\n"
-    text += (msg.chat.title or str(msg.chat.id)) + "\n"
+        result += f"🌐 ID: {msg.chat.id}\n"
+
+    # Название группы
+    result += f"📢 Группа: {msg.chat.title or msg.chat.id}\n"
+
+    # Автор
     if msg.from_user and msg.from_user.username:
-        text += f"@{msg.from_user.username}"
+        result += f"👤 Автор: @{msg.from_user.username}"
     elif msg.from_user:
-        text += f"ID: {msg.from_user.id}"
+        result += f"👤 Автор: ID: {msg.from_user.id}"
     else:
-        text += "Без имени"
-    return text
+        result += "👤 Автор: Неизвестен"
+
+    return result
 
 async def process_group(client, group_id, after_ts):
     print(f"\n🔍 Обработка группы: {group_id}")
