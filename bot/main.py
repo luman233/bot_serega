@@ -14,6 +14,40 @@ HASH_DIR = os.path.join(BASE_DIR, "hashes")
 
 app = Client("userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
+
+# ==== ХЕШИ ====
+
+def get_hash_list_path():
+    return os.path.join(HASH_DIR, "all_hashes.txt")
+
+def load_hash_list():
+    path = get_hash_list_path()
+    if not os.path.exists(path):
+        return []
+    with open(path, "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+def save_hash_list(hashes):
+    path = get_hash_list_path()
+    with open(path, "w") as f:
+        f.write("\n".join(hashes[-MAX_HASHES:]))
+    print(f"💾 Сохранено {len(hashes[-MAX_HASHES:])} хешей")
+
+def is_known_hash(hash_str):
+    return hash_str in load_hash_list()
+
+def append_hash(hash_str):
+    hashes = load_hash_list()
+    if hash_str not in hashes:
+        hashes.append(hash_str)
+        save_hash_list(hashes)
+
+def hash_message(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+# ==== ТРИГГЕРЫ ====
+
 def is_trigger(text):
     return any(word.lower() in text.lower() for word in TRIGGER_WORDS)
 
@@ -29,39 +63,8 @@ def bold_trigger_word(text, trigger_word):
     pattern = re.compile(re.escape(trigger_word), re.IGNORECASE)
     return pattern.sub(f"**{trigger_word}**", text, count=1)
 
-def ensure_group_dir(group_id):
-    gid = str(group_id).replace("@", "").replace("-", "m")
-    path = os.path.join(HASH_DIR, gid)
-    os.makedirs(path, exist_ok=True)
-    return path
 
-def hash_message(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-def get_hash_list_path(group_id):
-    return os.path.join(ensure_group_dir(group_id), "hashes.txt")
-
-def load_hash_list(group_id):
-    path = get_hash_list_path(group_id)
-    if not os.path.exists(path):
-        return []
-    with open(path, "r") as f:
-        return [line.strip() for line in f if line.strip()]
-
-def save_hash_list(group_id, hashes):
-    path = get_hash_list_path(group_id)
-    with open(path, "w") as f:
-        f.write("\n".join(hashes[-MAX_HASHES:]))
-    print(f"💾 Сохранено {len(hashes[-MAX_HASHES:])} хешей для группы {group_id}")
-
-def is_known_hash(group_id, hash_str):
-    return hash_str in load_hash_list(group_id)
-
-def append_hash(group_id, hash_str):
-    hashes = load_hash_list(group_id)
-    if hash_str not in hashes:
-        hashes.append(hash_str)
-        save_hash_list(group_id, hashes)
+# ==== ФОРМАТ ====
 
 def format_forwarded_message(msg):
     text = msg.text or ""
@@ -71,18 +74,14 @@ def format_forwarded_message(msg):
 
     result = text.strip() + "\n\n" + "—" * 15 + "\n"
 
-    # Ссылка на конкретное сообщение в группе: https://t.me/<username>/<message_id>
-    # Если нет username, можно сформировать ссылку по ID, но она нерабочая, поэтому лучше указать ID
     if msg.chat.username:
         message_link = f"https://t.me/{msg.chat.username}/{msg.id}"
         group_display = f"[{msg.chat.title}]({message_link})"
     else:
-        # Если username нет, то просто текст без ссылки
         group_display = msg.chat.title or str(msg.chat.id)
 
     result += f"🪚 Группа: {group_display}\n"
 
-    # Автор
     if msg.from_user and msg.from_user.username:
         result += f"🐻 Автор: @{msg.from_user.username}"
     elif msg.from_user:
@@ -92,6 +91,9 @@ def format_forwarded_message(msg):
 
     return result
 
+
+# ==== ОБРАБОТКА ====
+
 async def process_group(client, group_id, after_ts):
     print(f"\n🔍 Обработка группы: {group_id}")
 
@@ -100,25 +102,29 @@ async def process_group(client, group_id, after_ts):
             continue
         if msg.from_user and msg.from_user.is_self:
             continue
+
         msg_time = msg.date.replace(tzinfo=timezone.utc)
         if msg_time < after_ts:
             break
         if not is_trigger(msg.text):
             continue
 
-        text = format_forwarded_message(msg)
-        msg_hash = hash_message(text)
+        original_text = msg.text.strip()
+        msg_hash = hash_message(original_text)
 
-        if is_known_hash(group_id, msg_hash):
+        if is_known_hash(msg_hash):
             print(f"⚠️ Уже пересылали (хеш): {msg.id}")
             continue
 
         try:
-            await client.send_message(TARGET_GROUP_ID, text)
-            append_hash(group_id, msg_hash)
+            await client.send_message(TARGET_GROUP_ID, format_forwarded_message(msg))
+            append_hash(msg_hash)
             print(f"📤 Переслано: {msg.id}")
         except Exception as e:
             print(f"❌ Ошибка при пересылке: {e}")
+
+
+# ==== MAIN ====
 
 async def main():
     now = datetime.now(timezone.utc)
@@ -136,6 +142,7 @@ async def main():
 
         for group in SOURCE_GROUP_IDS:
             await process_group(app, group, after)
+
 
 if __name__ == "__main__":
     app.run(main())
