@@ -23,13 +23,13 @@ jobs:
           TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
           SOURCE_GROUP_IDS: ${{ secrets.SOURCE_GROUP_IDS }}
 
-      - name: Commit updated files
+      - name: Commit updated hashes
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add bot/hashes/*/hashes.txt || true
+          git add bot/hashes/all_hashes.txt || true
           git diff --cached --quiet || (
-            git commit -m "Update hashes.txt"
+            git commit -m "Update hashes"
             git pull --rebase
             git push
           )
